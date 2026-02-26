@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlphaAgent: Financial Research Copilot</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-dark: #07090E;
+            --bg-card: rgba(255, 255, 255, 0.03);
+            --azure-blue: #0078D4;
+            --nvidia-green: #76B900;
+            --text-main: #E2E8F0;
+            --text-muted: #94A3B8;
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --gradient-primary: linear-gradient(135deg, var(--azure-blue) 0%, var(--nvidia-green) 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: 'Outfit', sans-serif;
+            letter-spacing: -0.02em;
+        }
+
+        /* Utility Classes */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+        
+        .gradient-text {
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .glass-panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Background Effects */
+        .bg-glow {
+            position: fixed;
+            top: -20vh;
+            left: -10vw;
+            width: 50vw;
+            height: 50vw;
+            background: radial-gradient(circle, rgba(0,120,212,0.15) 0%, rgba(0,0,0,0) 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+        .bg-glow-right {
+            position: fixed;
+            bottom: -20vh;
+            right: -10vw;
+            width: 40vw;
+            height: 40vw;
+            background: radial-gradient(circle, rgba(118,185,0,0.1) 0%, rgba(0,0,0,0) 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* Hero Section */
+        header {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+            padding-top: 80px;
+        }
+
+        .nav {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 24px 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .logo {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 1.5rem;
+            letter-spacing: -1px;
+        }
+
+        .hero-content h1 {
+            font-size: clamp(3rem, 6vw, 5.5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            animation: fadeUp 1s ease-out;
+        }
+
+        .hero-content p {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            max-width: 700px;
+            margin: 0 auto 40px;
+            animation: fadeUp 1s ease-out 0.2s both;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            animation: fadeUp 1s ease-out 0.4s both;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            font-family: 'Inter', sans-serif;
+            font-size: 1.05rem;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: #fff;
+            box-shadow: 0 10px 20px rgba(0, 120, 212, 0.2);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(118, 185, 0, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        /* Stats/Partners Ribbon */
+        .partners {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 80px;
+            opacity: 0.6;
+            flex-wrap: wrap;
+            animation: fadeUp 1s ease-out 0.6s both;
+        }
+        
+        .partners span {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        /* Section Styling */
+        section {
+            padding: 120px 0;
+            position: relative;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 80px;
+        }
+
+        .section-header h2 {
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+
+        .section-header p {
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Architecture Grid */
+        .architecture-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+        }
+
+        .arch-card {
+            padding: 40px;
+            transition: transform 0.4s ease, background 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .arch-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 3px;
+            background: var(--gradient-primary);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .arch-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .arch-card:hover::before {
+            opacity: 1;
+        }
+
+        .arch-number {
+            font-family: 'Outfit', sans-serif;
+            font-size: 4rem;
+            font-weight: 800;
+            color: rgba(255,255,255,0.05);
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            line-height: 1;
+        }
+
+        .arch-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+            color: #fff;
+        }
+
+        .arch-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        /* Agents Section */
+        .agents-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .agent-row {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            align-items: center;
+            padding: 24px 32px;
+            gap: 32px;
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+
+        .agent-row:hover {
+            background: rgba(255, 255, 255, 0.02);
+            border-left-color: var(--azure-blue);
+            transform: translateX(10px);
+        }
+
+        .agent-row h4 {
+            font-size: 1.25rem;
+            color: #fff;
+        }
+
+        .agent-row p {
+            color: var(--text-muted);
+        }
+
+        /* Animations */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Footer */
+        footer {
+            padding: 60px 0;
+            text-align: center;
+            border-top: 1px solid var(--glass-border);
+            margin-top: 60px;
+        }
+
+        footer p {
+            color: var(--text-muted);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav { padding: 20px; }
+            .agent-row { grid-template-columns: 1fr; gap: 8px; padding: 20px; }
+            .section-header h2 { font-size: 2.5rem; }
+            .partners { gap: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Ambient Background Lighting -->
+    <div class="bg-glow"></div>
+    <div class="bg-glow-right"></div>
+
+    <nav class="nav">
+        <div class="logo">AlphaAgent</div>
+        <a href="https://github.com/dwirefs-nvidia/BetterTogether-with-ANF" class="btn btn-secondary" style="padding: 8px 16px; font-size: 0.9rem;">View GitHub</a>
+    </nav>
+
+    <!-- Hero Section -->
+    <header>
+        <div class="container hero-content">
+            <h1>Sovereign Agentic AI for <br><span class="gradient-text">Capital Markets</span></h1>
+            <p>Accelerate financial research with a production-grade, multi-agent AI pipeline. Built on the <strong>Better Together</strong> foundation of Microsoft Azure, NVIDIA NIMs, and Azure NetApp Files.</p>
+            
+            <div class="btn-group">
+                <a href="#architecture" class="btn btn-primary">Explore Architecture</a>
+                <a href="LAB_GUIDE.md" class="btn btn-secondary">Read Lab Guide</a>
+            </div>
+
+            <div class="partners">
+                <span>Microsoft Azure</span>
+                <span style="color: #444;">✦</span>
+                <span>NVIDIA AI</span>
+                <span style="color: #444;">✦</span>
+                <span>Azure NetApp Files</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Value Prop Section -->
+    <section class="container reveal">
+        <div class="section-header">
+            <h2>Why AlphaAgent?</h2>
+            <p>Moving beyond prototypes. We deliver secure, scalable, and instantaneous financial synthesis without your sensitive corporate data ever leaving the cluster.</p>
+        </div>
+        
+        <div class="architecture-grid">
+            <div class="glass-panel arch-card">
+                <h3>Zero Data Movement</h3>
+                <p>Traditional AI requires massive ETL pipelines. With Azure NetApp Files' file/object duality, legacy apps write PDFs via NFS, and the AI natively reads them via high-speed S3 <code>boto3</code> APIs. No duplication.</p>
+            </div>
+            <div class="glass-panel arch-card">
+                <h3>Data Sovereignty</h3>
+                <p>Financial institutions cannot send SEC filings or internal memos to public LLM endpoints. Our architecture runs NVIDIA Nemotron locally on AKS GPU nodes. 100% data privacy.</p>
+            </div>
+            <div class="glass-panel arch-card">
+                <h3>Hardware Accelerated</h3>
+                <p>NVIDIA NIM microservices deliver sub-200ms inference. Milvus vector search is supercharged by the NVIDIA <code>cuVS</code> (RAPIDS) algorithm, making billion-scale vector retrieval instantaneous.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section id="architecture" class="container reveal">
+        <div class="section-header">
+            <h2>The 4-Layer Enterprise Stack</h2>
+            <p>A completely automated, Infrastructure-as-Code driven deployment using Bicep, Helm, and Kubernetes.</p>
+        </div>
+
+        <div class="architecture-grid">
+            <div class="glass-panel arch-card">
+                <div class="arch-number">1</div>
+                <h3>The Data Layer</h3>
+                <p><strong>Azure NetApp Files (Premium)</strong>. Provides extreme performance NFSv4.1 mounts for the Milvus Vector Database and native Object REST endpoints for AI processing.</p>
+            </div>
+            <div class="glass-panel arch-card">
+                <div class="arch-number">2</div>
+                <h3>AI Processing Layer</h3>
+                <p><strong>AKS + NVIDIA NIMs</strong>. Managed Kubernetes clusters running NeMo Retriever for multimodal PDF parsing, NV-EmbedQA, NV-RerankQA, and Llama 3.1 Nemotron.</p>
+            </div>
+            <div class="glass-panel arch-card">
+                <div class="arch-number">3</div>
+                <h3>Intelligence Layer</h3>
+                <p><strong>NeMo Agent Toolkit</strong>. An open-source, YAML-configured declarative framework orchestrating a complex multi-agent state machine backed by a cuVS-accelerated Milvus DB.</p>
+            </div>
+            <div class="glass-panel arch-card">
+                <div class="arch-number">4</div>
+                <h3>Interface Layer</h3>
+                <p><strong>Streamlit Copilot</strong>. A dynamic front-end providing chat interfaces to analysts while exposing underlying NeMo Toolkit telemetry, token traces, and chain-of-thought routing.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Agents Section -->
+    <section class="container reveal">
+        <div class="section-header">
+            <h2>The 6-Agent Collaborative Workflow</h2>
+            <p>AlphaAgent utilizes NVIDIA's NeMo Agent Toolkit to break complex financial queries down into specialized, parallel tasks executed by expert agent personas.</p>
+        </div>
+
+        <div class="glass-panel agents-wrapper" style="padding: 16px 0;">
+            <div class="agent-row">
+                <h4>🧠 Orchestrator</h4>
+                <p>The Chief Research Analyst. Intercepts the user query, decomposes it into discrete tasks, and dynamically routes work to the appropriate sub-agents.</p>
+            </div>
+            <div class="agent-row">
+                <h4>📊 SEC Filing Agent</h4>
+                <p>Executes RAG against the Milvus database, querying deep fundamental data, risk factors, and financial tables parsed from 10-K and 10-Q PDFs.</p>
+            </div>
+            <div class="agent-row">
+                <h4>📈 Earnings Agent</h4>
+                <p>Analyzes management sentiment and forward-looking statements by fetching recent earnings call transcripts and Q&A excerpts.</p>
+            </div>
+            <div class="agent-row">
+                <h4>📰 News Agent</h4>
+                <p>The Real-Time Market Data Specialist. Ingests breaking macro and micro news events that could immediately impact ticker valuation.</p>
+            </div>
+            <!-- Highlight compliance agent -->
+            <div class="agent-row" style="background: rgba(217, 48, 37, 0.05); border-left-color: #d93025;">
+                <h4 style="color: #ff6b6b">🛡️ Compliance Agent</h4>
+                <p>The Automated Risk Firewall. Runs a strict pass over generated output to flag unauthorized speculation, guarantees of future performance, or SEC/FINRA violations.</p>
+            </div>
+            <div class="agent-row">
+                <h4>📝 Summarization Agent</h4>
+                <p>The Executive Editor. Takes the raw findings from the specialized agents and synthesizes them into a highly formatted, professional markdown briefing.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="container reveal" style="text-align: center; margin-bottom: 80px;">
+        <div class="glass-panel" style="padding: 80px 40px;">
+            <h2 style="font-size: 2.5rem; margin-bottom: 24px;">Ready to Build Better Together?</h2>
+            <p style="color: var(--text-muted); font-size: 1.2rem; max-width: 600px; margin: 0 auto 40px;">
+                Deploy the complete architecture into your own Azure subscription with a single <code>make deploy</code> command.
+            </p>
+            <div class="btn-group">
+                <a href="https://github.com/dwirefs-nvidia/BetterTogether-with-ANF" class="btn btn-primary">View the Code</a>
+                <a href="LAB_GUIDE.md" class="btn btn-secondary">Step-by-Step Lab Guide</a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 Project AlphaAgent. Built to showcase the power of Microsoft Azure, NVIDIA AI, and Azure NetApp Files.</p>
+        </div>
+    </footer>
+
+    <!-- Reveal Animation Script -->
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const reveals = document.querySelectorAll(".reveal");
+
+            const revealOnScroll = () => {
+                const windowHeight = window.innerHeight;
+                const elementVisible = 100;
+
+                reveals.forEach((reveal) => {
+                    const elementTop = reveal.getBoundingClientRect().top;
+                    if (elementTop < windowHeight - elementVisible) {
+                        reveal.classList.add("active");
+                    }
+                });
+            };
+
+            window.addEventListener("scroll", revealOnScroll);
+            revealOnScroll(); // Trigger on load
+        });
+    </script>
+</body>
+</html>
