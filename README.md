@@ -79,3 +79,26 @@ MIT License. See `LICENSE` for details.
 ## Hands-On Lab Guide
 
 For a detailed, step-by-step workshop guide on deploying and testing this architecture, please refer to [docs/LAB_GUIDE.md](docs/LAB_GUIDE.md).
+
+---
+
+## 🌎 Full "Better Together" Context
+
+The AlphaAgent repository is designed to showcase the pinnacle of enterprise sovereign AI by integrating three world-class pillars:
+
+### 1. Azure NetApp Files (Zero Data Movement)
+
+Historically, Financial Services Institutions (FSIs) have suffered from the "ETL paradigm"—duplicating massive troves of on-premises NAS PDFs into cloud object stores just to make them accessible to AI. AlphaAgent eliminates this using the **ANF File/Object Duality** feature.
+Legacy batch jobs download SEC filings (10-K, 10-Q) and write them locally to ANF using the standard `NFSv4.1` POSIX protocol. Simultaneously, the AlphaAgent AI Python pipeline (`ingest.py`) reads those exact same files using `boto3` via the **S3-Compatible Object REST API**. This proves **Zero Data Movement (Zero-ETL)**, massively cutting storage costs and compliance risks.
+
+### 2. NVIDIA AI (Hardware Acceleration & Sovereignty)
+
+The stack abandons public API endpoints in favor of 100% data sovereignty via **NVIDIA NIM Microservices** deployed locally on Azure Kubernetes Service (AKS) GPU node pools (`Standard_NC24ads_A100_v4`).
+
+- **NeMo Retriever** handles complex multimodal extraction of financial charts and tables from the raw PDFs.
+- **Milvus Vector Database** is physically persisted on the ANF NFS premium tiers, but logically supercharged by the **NVIDIA `cuVS` (RAPIDS) algorithm** (`GPU_CAGRA` index) to provide sub-millisecond similarity search across billion-scale vector datasets.
+- **Nemotron Super 49B / Llama 3.1** acts as the local LLM reasoning engine.
+
+### 3. NeMo Agent Toolkit (Agentic Workflows)
+
+Replacing rigid, linear RAG scripts, the application leverages the `nvidia-nat` open-source framework. A declarative YAML state machine orchestrates 6 distinct agents: an Orchestrator, SEC Fundamental Analyst, Earnings Sentiment Evaluator, Market News Specialist, Regulatory Compliance Officer, and Executive Summarizer. This provides highly parallelized, hallucination-resistant financial research generation.
