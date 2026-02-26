@@ -69,3 +69,23 @@ graph TD;
 * All inference occurs locally within the AKS cluster.
 * No corporate data is sent to external APIs like OpenAI or Anthropic.
 * Azure NetApp Files provides encryption-at-rest, ransomware protection, and instantaneous snapshots for regulatory compliance.
+
+---
+
+## Full Architectural Context & Better Together Value
+
+The core directive of this solution is to prove that enterprise organizations can achieve **State-of-the-Art (SotA) AI without compromising data gravity or security**.
+
+### The Storage Paradigm Shift (Zero-ETL)
+
+The integration of Azure NetApp Files fundamentally alters the AI data supply chain. By leveraging ANF's simultaneous dual-protocol capabilities, we eliminate the need for costly and insecure data pipelines. Financial data (EDGAR filings) lands on the storage volume via standard enterprise protocols (`NFSv4.1`). Immediately, without any background synchronization or copying, the AI containers access that exact byte-stream via the **Object REST API** natively using standard cloud-native Python libraries like `boto3`.
+
+### Uncompromising GPU Performance
+
+We maximize hardware utilization by shifting previously CPU-bound tasks entirely to the GPU.
+* **Retrieval**: The Milvus vector database leverages the **NVIDIA cuVS (RAPIDS) `GPU_CAGRA` index algorithm**, bypassing standard CPU HNSW limitations to enable real-time semantic search even as the database scales into the hundreds of millions of vectors.
+* **Processing**: The ingestion layer (chunking, embedding) and the generation layer (LLM inference) are exclusively handled by locally hosted NVIDIA NIM microservices, ensuring that peak throughput is maintained and strict data territoriality laws are adhered to within the Azure VNet boundary.
+
+### Agentic, Not Linear
+
+The system abandons single-shot RAG in favor of the **NeMo Agent Toolkit**. By decomposing user requests across 6 specialized LLM routing personas, the architecture can cross-reference fundamental SEC data against real-time news and compliance guardrails before producing a final output—mimicking a real financial research desk.
