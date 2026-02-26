@@ -102,3 +102,15 @@ The stack abandons public API endpoints in favor of 100% data sovereignty via **
 ### 3. NeMo Agent Toolkit (Agentic Workflows)
 
 Replacing rigid, linear RAG scripts, the application leverages the `nvidia-nat` open-source framework. A declarative YAML state machine orchestrates 6 distinct agents: an Orchestrator, SEC Fundamental Analyst, Earnings Sentiment Evaluator, Market News Specialist, Regulatory Compliance Officer, and Executive Summarizer. This provides highly parallelized, hallucination-resistant financial research generation.
+
+---
+
+## 🧠 Building AlphaAgent: The Engineering Journey
+
+During the development of this repository, several critical design decisions were made to elevate this from a "toy" RAG application to a production-grade enterprise system:
+
+1. **Rejecting the Single-VM Shortcut:** Initially, the architecture was conceived as a single-VM Docker Compose deployment. We explicitly rejected this. Enterprise AI demands high availability, rolling updates, and scalable node pools. We rebuilt the infrastructure using **Bicep** to target **Azure Kubernetes Service (AKS)**, utilizing Helm for the NVIDIA GPU Operator, Milvus, and the various NIM microservices. The single-VM code is preserved in `backup/single-vm/` for reference, but the core path is purely Kubernetes.
+2. **Battling Hallucinations with NeMo Agent Toolkit (`nvidia-nat`):** Simple Python loop agents are prone to catastrophic hallucination when cross-referencing vast amounts of financial data. By integrating the NVIDIA NeMo Agent Toolkit and a declarative `workflow.yaml`, we implemented a strict state machine. We created dedicated tools (`market_data.py`, `compliance.py`) to ground the agents. Specifically, the **Compliance Agent** acts as an LLM-driven adversarial check to ensure the Orchestrator's final output adheres to strict FINRA/SEC regulatory guidelines before presenting it to the user.
+3. **The S3 `boto3` Integration:** To truly prove the Azure NetApp Files "Zero-ETL" value proposition, we didn't just talk about it—we built it. We modified the `ingest.py` pipeline to specifically query the ANF Object REST API using standard `boto3` calls, validating that AI workloads can treat on-prem NAS folders as cloud-native S3 buckets instantly, with a seamless fallback to POSIX NFS mounts.
+4. **NVIDIA cuVS Acceleration:** We identified that standard CPU-based HNSW vector indexes become a bottleneck as vector counts scale into the hundreds of millions. We updated the Milvus Helm charts and the ingestion script to leverage the NVIDIA RAPIDS `cuVS` algorithm (`GPU_CAGRA` index mode), completely shifting similarity search compute to the GPU tier for sub-millisecond lookups.
+5. **Observability is Mandatory:** We integrated execution tracing into the Streamlit UI, allowing analysts to watch the agent chain-of-thought routing in real time, exposing which internal tools (Milvus, web search, compliance checks) were executed and how long they took.
