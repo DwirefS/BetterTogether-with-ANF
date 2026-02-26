@@ -13,13 +13,13 @@ This repository demonstrates the **Better Together** story of Microsoft Azure, N
 
 This repository uses Infrastructure as Code (Bicep + Helm) to deploy:
 
-1. **Data Layer**: Azure NetApp Files (Premium) hosting real SEC EDGAR filings (10-K, 10-Q). Data is accessed simultaneously via NFSv4.1 (for K8s PVs) and the Object REST API (S3-compatible) for zero-ETL agent reads.
+1. **Data Layer**: Azure NetApp Files (Premium) hosting real SEC EDGAR filings (10-K, 10-Q). Data is accessed simultaneously via NFSv4.1 (for legacy apps) and the Object REST API natively in Python via `boto3` for zero-ETL AI processing.
 2. **AI Processing Layer**: AKS cluster with NVIDIA GPU Operator. Hosts local **NVIDIA NIM microservices** via Helm:
    - NeMo Retriever (Multimodal PDF extraction)
    - NV-EmbedQA (Vectors)
    - NV-RerankQA (Retrieval scoring)
    - Nemotron Super 49B / Nano (LLM reasoning)
-3. **Intelligence Layer**: **NVIDIA NeMo Agent Toolkit** orchestrating a 6-agent collaborative framework. Semantic search is powered by **Milvus** vector database, persisted on ANF NFS volumes and accelerated by cuVS.
+3. **Intelligence Layer**: **NVIDIA NeMo Agent Toolkit** orchestrating a 6-agent collaborative framework. Semantic search is powered by **Milvus** vector database, physically persisted on ANF NFS volumes and logically accelerated by NVIDIA **cuVS** (`GPU_CAGRA` index).
 4. **Interface Layer**: Interactive Streamlit UI exposing agent thought processes, Milvus citations, and NeMo observability telemetry.
 
 *All data and inference remain 100% within the Azure VNet. No external API calls are made for document analysis.*
@@ -77,4 +77,5 @@ make destroy
 MIT License. See `LICENSE` for details.
 
 ## Hands-On Lab Guide
+
 For a detailed, step-by-step workshop guide on deploying and testing this architecture, please refer to [docs/LAB_GUIDE.md](docs/LAB_GUIDE.md).

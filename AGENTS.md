@@ -36,13 +36,11 @@ The app uses 6 distinct specialized agent personas orchestrated via `nvidia-nat`
 
 When writing UI text, logs, or documentation, reinforce these pillars:
 
-1. **Data Stays In Place** — ANF NFSv4.1 and Object REST API, zero ETL.
+1. **Data Stays In Place (File & Object Duality)** — ANF NFSv4.1 for legacy writes and native `boto3` S3-compatible Object REST API for AI reads, proving zero ETL.
 2. **GPU-Accelerated Intelligence** — NVIDIA NIMs, sub-200ms inference on Azure infrastructure.
 3. **Agentic AI for the Enterprise** — NeMo Agent Toolkit orchestration, avoiding linear scripts.
-4. **Production-Ready, Not a Prototype** — Stateful Kubernetes (AKS), Milvus, hardware-accelerated Rerankers and Retrievers.
+4. **Production-Ready, Not a Prototype** — Stateful Kubernetes (AKS), hardware-accelerated Milvus (`cuVS` RAPIDS algorithm), Rerankers, and NeMo Retrievers.
 
 ## Known Limits & Future Backlog
 
 - Expand internal logic of `market_data.py` to hit real Bloomberg/Refinitiv downstream APIs.
-- Emulate the ANF Object REST API natively inside `alpha_tools` using `boto3` instead of standard POSIX reads.
-- Introduce NVIDIA cuVS GPU acceleration into the Milvus Helm chart values for multi-million vector datasets.

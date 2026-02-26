@@ -24,12 +24,18 @@ standalone:
     limits:
       cpu: "4"
       memory: "16Gi"
+      nvidia.com/gpu: "1"
     requests:
       cpu: "2"
       memory: "8Gi"
-  # Enable cuVS acceleration if GPU nodes are available
-  # Note: Requires Milvus image built with GPU support
-  # image: milvusdb/milvus:v2.4.0-gpu
+      nvidia.com/gpu: "1"
+  # Enable cuVS acceleration with the GPU-enabled image
+  image: "milvusdb/milvus:v2.4.0-gpu"
+  extraEnv:
+    - name: KNOWHERE_GPU_SEARCH_MODE
+      value: "true"
+    - name: MILVUS_GPU_ACCELERATION_ENABLED
+      value: "true"
   persistence:
     enabled: true
     storageClass: ""

@@ -11,7 +11,7 @@ Unlike prototyping environments, this architecture is a full 4-layer production 
 ### 1. The Data Layer: Azure NetApp Files (ANF)
 
 * **Challenge**: Capital markets firms have exabytes of unstructured data (SEC filings, research PDFs, transcripts) sitting on enterprise NAS. traditional AI requires ETL to object stores, duplicating data and breaking compliance.
-* **Solution**: ANF provides file/object duality. Existing apps write PDFs via NFS. The AI pipeline reads those exact same files via the ANF Object REST API (S3-compatible) or direct high-performance NFS mounts. **Zero data movement.**
+* **Solution**: ANF provides file/object duality. Existing apps write PDFs via NFS. The AI pipeline (`ingest.py`) reads those exact same files using the native `boto3` library via the ANF Object REST API (S3-compatible). **Zero data movement.**
 
 ### 2. The AI Processing Layer: AKS + NVIDIA NIM
 
