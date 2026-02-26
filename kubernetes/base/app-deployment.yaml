@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alpha-agent-app
+  namespace: finserv-ai
+  labels:
+    app: alpha-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alpha-agent
+  template:
+    metadata:
+      labels:
+        app: alpha-agent
+    spec:
+      containers:
+      - name: streamlit
+        # Image will be built and pushed to target ACR or Docker Hub during deployment
+        image: alphaagent/app:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8501
+        env:
+        # Pointers to internal K8s NIM services
+        - name: NIM_LLM_URL
+          value: "http://nim-llm:8000/v1"
+        - name: NIM_EMBED_URL
+          value: "http://nim-embed:8000/v1"
+        - name: MILVUS_HOST
+          value: "milvus"
+        - name: MILVUS_PORT
+          value: "19530"
+        - name: ANF_MOUNT_PATH
+          value: "/mnt/anf/data"
+        # ANF Object REST API credentials (mapped from Key Vault initially in script, or secrets here)
+        - name: ANF_OBJECT_REST_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: anf-s3-secret
+              key: endpoint
+              optional: true
+        - name: ANF_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: anf-s3-secret
+              key: access_key
+              optional: true
+        - name: ANF_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: anf-s3-secret
+              key: secret_key
+              optional: true
+        volumeMounts:
+        - name: anf-data
+          mountPath: /mnt/anf/data
+      volumes:
+      - name: anf-data
+        persistentVolumeClaim:
+          claimName: anf-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: streamlit-ui
+  namespace: finserv-ai
+spec:
+  type: LoadBalancer # For demo accessibility, otherwise ClusterIP behind Ingress
+  ports:
+  - port: 8501
+    targetPort: 8501
+  selector:
+    app: alpha-agent

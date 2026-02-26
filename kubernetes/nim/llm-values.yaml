@@ -1,0 +1,31 @@
+# Values for NVIDIA NIM LLM (Nemotron Super 49B or Nano 9B)
+# Chart: https://helm.ngc.nvidia.com/nim/charts/nim-llm
+
+image:
+  repository: nvcr.io/nim/meta/llama-3.1-8b-instruct # Defaulting to Llama 3.1 8B Instruct for lower GPU footprint if A100 is not available. Swap to Nemotron if quota allows.
+  tag: 1.1.2
+  pullPolicy: IfNotPresent
+  pullSecrets:
+    - name: ngc-secret
+
+resources:
+  limits:
+    nvidia.com/gpu: 1
+  requests:
+    nvidia.com/gpu: 1
+
+env:
+  - name: NGC_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: ngc-secret
+        key: NGC_API_KEY
+
+service:
+  type: ClusterIP
+  port: 8000
+
+# Optional: Add node selector to force scheduling on GPU nodes
+nodeSelector:
+  kubernetes.io/os: linux
+  # accelerator: nvidia

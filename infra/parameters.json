@@ -1,0 +1,27 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "location": {
+            "value": "eastus2"
+        },
+        "prefix": {
+            "value": "alpha-ai"
+        },
+        "systemVmSize": {
+            "value": "Standard_D4s_v3"
+        },
+        "gpuVmSize": {
+            "value": "Standard_NC24ads_A100_v4"
+        },
+        "gpuNodeCount": {
+            "value": 2
+        },
+        "anfServiceLevel": {
+            "value": "Premium"
+        },
+        "anfPoolSizeTiB": {
+            "value": 4
+        }
+    }
+}

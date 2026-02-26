@@ -1,0 +1,25 @@
+# AlphaAgent — Enterprise Python Dependencies
+
+# UI
+streamlit==1.42.0
+
+# NIM API client
+requests>=2.31.0
+
+# NVIDIA NeMo Agent Toolkit
+nvidia-nat>=0.3.0
+
+# Vector Database (ANF PVC Backend)
+pymilvus>=2.4.0
+
+# Document Ingestion (Pre-processing for NIM Retriever)
+langchain-community>=0.2.0
+langchain-text-splitters>=0.2.0
+pypdf>=4.0.0
+
+# Settings management
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+python-dotenv>=1.0.0
+pyyaml>=6.0.0
+tenacity>=8.0.0

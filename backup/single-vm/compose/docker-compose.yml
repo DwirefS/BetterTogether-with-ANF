@@ -1,0 +1,99 @@
+# ============================================================================
+# AlphaAgent — Docker Compose (NVIDIA NIM + App)
+# ============================================================================
+# Services:
+#   nim-llm   — NVIDIA Nemotron Nano 4B LLM (reasoning)
+#   nim-embed — NVIDIA EmbedQA 1B (embeddings)
+#   init      — Generate synthetic data + build index on ANF
+#   ui        — Streamlit multi-agent frontend
+# ============================================================================
+
+services:
+  nim-llm:
+    image: nvcr.io/nim/nvidia/llama3.1-nemotron-nano-4b-v1.1:latest
+    shm_size: 16gb
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+    volumes:
+      - ${LOCAL_NIM_CACHE}:/opt/nim/.cache
+    ports:
+      - "8000:8000"
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 60
+      start_period: 300s
+
+  nim-embed:
+    image: nvcr.io/nim/nvidia/llama-3.2-nv-embedqa-1b-v2:latest
+    shm_size: 16gb
+    environment:
+      - NGC_API_KEY=${NGC_API_KEY}
+    volumes:
+      - ${LOCAL_NIM_CACHE}:/opt/nim/.cache
+    ports:
+      - "8001:8000"
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
+      interval: 30s
+      timeout: 10s
+      retries: 60
+      start_period: 300s
+
+  init:
+    build:
+      context: ../app
+      dockerfile: Dockerfile
+    environment:
+      - LLM_BASE_URL=http://nim-llm:8000
+      - EMBED_BASE_URL=http://nim-embed:8000
+      - DATA_ROOT=${DATA_ROOT}
+      - INDEX_ROOT=${INDEX_ROOT}
+    volumes:
+      - ${DATA_ROOT}:${DATA_ROOT}
+      - ${INDEX_ROOT}:${INDEX_ROOT}
+    depends_on:
+      nim-llm:
+        condition: service_healthy
+      nim-embed:
+        condition: service_healthy
+    command: ["python", "-m", "demo.init"]
+    restart: "no"
+
+  ui:
+    build:
+      context: ../app
+      dockerfile: Dockerfile
+    environment:
+      - LLM_BASE_URL=http://nim-llm:8000
+      - EMBED_BASE_URL=http://nim-embed:8000
+      - DATA_ROOT=${DATA_ROOT}
+      - INDEX_ROOT=${INDEX_ROOT}
+    volumes:
+      - ${DATA_ROOT}:${DATA_ROOT}
+      - ${INDEX_ROOT}:${INDEX_ROOT}
+    depends_on:
+      - init
+    ports:
+      - "8501:8501"
+    command: ["streamlit", "run", "demo/ui.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+    restart: unless-stopped

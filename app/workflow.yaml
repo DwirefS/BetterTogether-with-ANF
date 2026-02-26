@@ -1,0 +1,91 @@
+# NVIDIA NeMo Agent Toolkit (nvidia-nat) Workflow Configuration
+# Maps to the 6-agent reference architecture from the "Better Together" report.
+
+name: alpha-agent-copilot
+description: Capital Markets Financial Research Copilot
+version: 1.0
+
+# Define the models running on K8s
+llms:
+  - name: nemotron-reasoning
+    provider: openai # NIMs are OpenAI-compatible endpoints
+    model: "meta/llama-3.1-8b-instruct" # Or Nemotron Super 49B depending on deployed Helm Chart
+    api_base: "http://nim-llm:8000/v1"
+    temperature: 0.1
+
+# Shared tools accessible by agents
+tools:
+  - name: anf_milvus_search
+    description: Semantic search against SEC filings stored in Milvus on ANF
+    runtime: python
+    module: "alpha_tools.anf_milvus_search"
+  
+  - name: compliance_check
+    description: Cross-references SEC and FINRA regulatory frameworks against text
+    runtime: python
+    module: "alpha_tools.compliance"
+    
+  - name: fetch_market_news
+    description: Fetch recent macro and micro news events for a ticker.
+    runtime: python
+    module: "alpha_tools.market_data"
+    
+  - name: fetch_earnings_transcripts
+    description: Retrieve transcript excerpts from recent earnings calls.
+    runtime: python
+    module: "alpha_tools.market_data"
+
+# The 6 Agents
+agents:
+  - name: orchestrator
+    role: "Chief Research Analyst"
+    goal: "Coordinate sub-queries to specialized agents and synthesize final briefings."
+    instructions: "Given a user query, break it down. Call the SEC agent for 10-K data, Earnings agent for transcripts, News agent for recent events. Finally, give the output to the Compliance and Summarization agents."
+    llm: nemotron-reasoning
+    is_orchestrator: true
+
+  - name: sec_filing_agent
+    role: "Fundamental Fundamentals Analyst"
+    goal: "Retrieve and analyze hard metrics from SEC 10-K and 10-Q filings using Retrieval Augmented Generation (RAG)."
+    instructions: "Always use the 'anf_milvus_search' tool to grab chunks from the SEC EDGAR filings stored on Azure NetApp Files before answering."
+    llm: nemotron-reasoning
+    tools:
+      - anf_milvus_search
+
+  - name: earnings_agent
+    role: "Earnings Transcript Sentiment Evaluator"
+    goal: "Evaluate forward-looking statements and management sentiment."
+    instructions: "Analyze context from Q&A sections of earnings calls using the fetch_earnings_transcripts tool."
+    llm: nemotron-reasoning
+    tools:
+      - fetch_earnings_transcripts
+
+  - name: news_agent
+    role: "Real-Time Market Data Specialist"
+    goal: "Fetch recent news events affecting the ticker symbol."
+    instructions: "Summarize major news events using the fetch_market_news tool."
+    llm: nemotron-reasoning
+    tools:
+      - fetch_market_news
+
+  - name: compliance_agent
+    role: "Regulatory Compliance Officer"
+    goal: "Ensure that output does not violate internal policies or misrepresent financial guidance."
+    instructions: "Use the 'compliance_check' tool to validate the draft. Flag statements involving unauthorized speculation."
+    llm: nemotron-reasoning
+    tools:
+      - compliance_check
+
+  - name: summarization_agent
+    role: "Executive Briefing Editor"
+    goal: "Format the final output into a structured markdown investment report."
+    instructions: "Take the findings from the other 5 agents and organize into an Executive Summary, Key Risks, Sentiment Analysis, and Sources Cited (referencing the original PDF path on ANF)."
+    llm: nemotron-reasoning
+
+# Defining the flow and telemetry
+workflow:
+  type: autonomous # Let the orchestrator route requests dynamically
+  entry_agent: orchestrator
+  telemetry:
+    profiler_enabled: true
+    log_level: DEBUG

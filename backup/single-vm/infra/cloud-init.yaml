@@ -1,0 +1,42 @@
+#cloud-config
+# ============================================================================
+# AlphaAgent — GPU VM Bootstrap (cloud-init)
+# ============================================================================
+# Installs Docker, docker-compose plugin, NFS utilities, and NVIDIA Container
+# Toolkit. Runs at first boot of the Azure GPU VM.
+# ============================================================================
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - jq
+  - nfs-common
+
+runcmd:
+  # ---- Docker CE ----
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update -y
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+  - systemctl enable docker
+  - systemctl start docker
+
+  # ---- NVIDIA Container Toolkit ----
+  # Reference: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
+  - curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  - curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+  - apt-get update -y
+  - apt-get install -y nvidia-container-toolkit
+  - nvidia-ctk runtime configure --runtime=docker
+  - systemctl restart docker
+
+  # ---- Create working directories ----
+  - mkdir -p /opt/anf-nim-demo
+  - mkdir -p /mnt/anf
+  - mkdir -p /var/lib/nim-cache

@@ -1,0 +1,33 @@
+# Values for NVIDIA GPU Operator on AKS
+# Based on: https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html
+
+toolkit:
+  env:
+  - name: CONTAINERD_CONFIG
+    value: /etc/containerd/config.toml
+  - name: CONTAINERD_SOCKET
+    value: /run/containerd/containerd.sock
+  - name: CONTAINERD_RUNTIME_CLASS
+    value: nvidia
+  - name: CONTAINERD_SET_AS_DEFAULT
+    value: "true"
+
+driver:
+  enabled: true
+  useOpenKmods: true
+  rdma:
+    enabled: false
+
+mig:
+  strategy: single
+
+devicePlugin:
+  enabled: true
+  config:
+    name: default
+    default: "any"
+
+dcgmExporter:
+  enabled: true
+  serviceMonitor:
+    enabled: false
