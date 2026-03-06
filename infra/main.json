@@ -207,7 +207,7 @@
         "agentPoolProfiles": [
           {
             "name": "systempool",
-            "count": 2,
+            "count": 1,
             "vmSize": "[parameters('systemVmSize')]",
             "osType": "Linux",
             "mode": "System",
@@ -269,6 +269,33 @@
       "dependsOn": [
         "[resourceId('Microsoft.ContainerService/managedClusters', format('{0}-aks', parameters('prefix')))]"
       ]
+    },
+    {
+      "type": "Microsoft.ContainerRegistry/registries",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}acr{1}', replace(parameters('prefix'), '-', ''), uniqueString(resourceGroup().id))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Basic"
+      },
+      "properties": {
+        "adminUserEnabled": true
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.ContainerRegistry/registries/{0}', format('{0}acr{1}', replace(parameters('prefix'), '-', ''), uniqueString(resourceGroup().id)))]",
+      "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr{1}', replace(parameters('prefix'), '-', ''), uniqueString(resourceGroup().id))), resourceId('Microsoft.ContainerService/managedClusters', format('{0}-aks', parameters('prefix'))), 'acrpull')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+        "principalId": "[reference(resourceId('Microsoft.ContainerService/managedClusters', format('{0}-aks', parameters('prefix'))), '2023-10-01', 'full').properties.identityProfile.kubeletidentity.objectId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr{1}', replace(parameters('prefix'), '-', ''), uniqueString(resourceGroup().id)))]",
+        "[resourceId('Microsoft.ContainerService/managedClusters', format('{0}-aks', parameters('prefix')))]"
+      ]
     }
   ],
   "outputs": {
@@ -295,6 +322,14 @@
     "keyVaultName": {
       "type": "string",
       "value": "[format('{0}-kv-{1}', parameters('prefix'), uniqueString(resourceGroup().id))]"
+    },
+    "acrName": {
+      "type": "string",
+      "value": "[format('{0}acr{1}', replace(parameters('prefix'), '-', ''), uniqueString(resourceGroup().id))]"
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.ContainerRegistry/registries', format('{0}acr{1}', replace(parameters('prefix'), '-', ''), uniqueString(resourceGroup().id))), '2023-07-01').loginServer]"
     }
   }
 }

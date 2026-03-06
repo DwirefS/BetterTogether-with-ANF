@@ -1,42 +1,132 @@
-# Values for Milvus standalone on AKS with ANF NFS persistence
+# Values for Milvus on AKS with ANF NFS persistence
 # Chart: https://milvus.io/docs/install_cluster-helm.md
+#
+# [COST OPTIMIZATION] Running CPU-only to avoid needing an extra GPU node.
+# For demo-scale data (a few hundred SEC filing chunks), CPU IVF_FLAT is
+# plenty fast. When budget allows, re-enable GPU_CAGRA below.
+#
+# [HA MODE] cluster.enabled=true provisions separate queryNode, indexNode,
+# and dataNode replicas for high availability. In standalone mode (false),
+# a single pod handles all roles — simpler but is a single point of failure.
+# Toggle to false for local dev / demo; true for production / staging.
 
 cluster:
-  enabled: false # Standalone mode for the demo
+  enabled: true  # Cluster mode for HA — eliminates single point of failure
+
+# -------------------------------------------------------------------------------------
+# Cluster Mode Components (only active when cluster.enabled=true)
+# -------------------------------------------------------------------------------------
+# Milvus cluster mode separates concerns into specialized node types:
+#   - queryNode: handles search/query operations (the hot path)
+#   - indexNode: builds vector indexes in background
+#   - dataNode: manages data insert/flush to storage
+#   - proxy: routes client requests to appropriate nodes
+#
+# Each can scale independently based on workload patterns.
+# -------------------------------------------------------------------------------------
+
+proxy:
+  replicas: 2
+  resources:
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+
+queryNode:
+  replicas: 2  # 2 replicas for query HA — if one fails, the other serves reads
+  resources:
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+      # [ORIGINAL] nvidia.com/gpu: "1" — removed to run CPU-only
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+  # [ORIGINAL] image: "milvusdb/milvus:v2.4.0-gpu"
+
+indexNode:
+  replicas: 1  # Single index builder is fine — index creation is async
+  resources:
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+
+dataNode:
+  replicas: 2  # 2 replicas for write HA
+  resources:
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+
+image:
+  all:
+    repository: milvusdb/milvus
+    tag: "v2.4.0"
+    # [ORIGINAL] tag: "v2.4.0-gpu" — GPU image not needed for CPU-only mode
 
 etcd:
-  replicaCount: 1
+  replicaCount: 3  # 3-node etcd cluster for HA (Raft consensus requires odd number)
   persistence:
     enabled: true
-    storageClass: "" # Default to ANF PVC
-    existingClaim: "anf-milvus-pvc" # Use the ANF NFS PVC
+    # Let etcd use default Azure Managed Disk (not shared ANF PVC)
+    # etcd needs its own volume — sharing with Milvus causes conflicts
+    storageClass: "managed-csi"
+    size: 8Gi
 
+# MinIO stays standalone — distributed mode requires separate PVCs per replica
+# (erasure coding needs isolated drives), which conflicts with a shared ANF NFS PVC.
+# HA is achieved at the Milvus layer (multiple queryNode/dataNode replicas),
+# not at the MinIO layer. For production MinIO HA, provision separate ANF volumes
+# or use Azure Blob Storage as the object backend instead.
 minio:
   mode: standalone
   persistence:
     enabled: true
     storageClass: ""
-    existingClaim: "anf-data-pvc" # Share the main data volume
-
-standalone:
-  replicas: 1
+    existingClaim: "anf-data-pvc"  # ANF NFS — ReadWriteMany allows shared access
+    size: 100Gi
   resources:
     limits:
-      cpu: "4"
-      memory: "16Gi"
-      nvidia.com/gpu: "1"
-    requests:
       cpu: "2"
-      memory: "8Gi"
-      nvidia.com/gpu: "1"
-  # Enable cuVS acceleration with the GPU-enabled image
-  image: "milvusdb/milvus:v2.4.0-gpu"
-  extraEnv:
-    - name: KNOWHERE_GPU_SEARCH_MODE
-      value: "true"
-    - name: MILVUS_GPU_ACCELERATION_ENABLED
-      value: "true"
-  persistence:
-    enabled: true
-    storageClass: ""
-    existingClaim: "anf-milvus-pvc"
+      memory: "4Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+
+# -------------------------------------------------------------------------------------
+# Standalone Mode (kept for reference — activate by setting cluster.enabled=false)
+# -------------------------------------------------------------------------------------
+# standalone:
+#   replicas: 1
+#   resources:
+#     limits:
+#       cpu: "4"
+#       memory: "8Gi"
+#     requests:
+#       cpu: "2"
+#       memory: "4Gi"
+#   image: "milvusdb/milvus:v2.4.0"
+#   # [ORIGINAL GPU cuVS config — requires nvidia.com/gpu resource]
+#   # extraEnv:
+#   #   - name: KNOWHERE_GPU_SEARCH_MODE
+#   #     value: "true"
+#   #   - name: MILVUS_GPU_ACCELERATION_ENABLED
+#   #     value: "true"
+#   persistence:
+#     enabled: true
+#     storageClass: ""
+#     existingClaim: "anf-milvus-pvc"
+
+persistence:
+  enabled: true
+  storageClass: ""
+  existingClaim: "anf-milvus-pvc"

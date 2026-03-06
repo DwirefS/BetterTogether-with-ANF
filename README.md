@@ -1,116 +1,222 @@
 # Project AlphaAgent: Financial Research Copilot
 
-A production-grade, 4-layer Agentic AI architecture for Capital Markets.
+A production-grade, 4-layer Agentic AI architecture for Capital Markets — built on Azure, NVIDIA AI, and Azure NetApp Files.
 
-This repository demonstrates the **Better Together** story of Microsoft Azure, NVIDIA AI, and Azure NetApp Files by deploying a fully sovereign, multi-agent document intelligence platform.
+This repository deploys a fully sovereign, multi-agent document intelligence platform that analyzes SEC EDGAR filings using NVIDIA NIM microservices, Milvus vector search, and NeMo Agent Toolkit orchestration. All data and inference stay 100% within the Azure VNet.
 
-> [!WARNING]
-> This is the pure enterprise deployment pattern targeting **Azure Kubernetes Service (AKS)** with dedicated GPU nodes. If you are looking for the simplified single-VM fallback, see the `backup/single-vm/` directory.
-
----
-
-## 🏗️ 4-Layer Enterprise Architecture
-
-This repository uses Infrastructure as Code (Bicep + Helm) to deploy:
-
-1. **Data Layer**: Azure NetApp Files (Premium) hosting real SEC EDGAR filings (10-K, 10-Q). Data is accessed simultaneously via NFSv4.1 (for legacy apps) and the Object REST API natively in Python via `boto3` for zero-ETL AI processing.
-2. **AI Processing Layer**: AKS cluster with NVIDIA GPU Operator. Hosts local **NVIDIA NIM microservices** via Helm:
-   - NeMo Retriever (Multimodal PDF extraction)
-   - NV-EmbedQA (Vectors)
-   - NV-RerankQA (Retrieval scoring)
-   - Nemotron Super 49B / Nano (LLM reasoning)
-3. **Intelligence Layer**: **NVIDIA NeMo Agent Toolkit** orchestrating a 6-agent collaborative framework. Semantic search is powered by **Milvus** vector database, physically persisted on ANF NFS volumes and logically accelerated by NVIDIA **cuVS** (`GPU_CAGRA` index).
-4. **Interface Layer**: Interactive Streamlit UI exposing agent thought processes, Milvus citations, and NeMo observability telemetry.
-
-*All data and inference remain 100% within the Azure VNet. No external API calls are made for document analysis.*
+> **Conference Demo**: This stack is designed for the "Better Together with ANF" presentation showcasing the convergence of Azure NetApp Files, NVIDIA AI, and Azure Kubernetes Service.
 
 ---
 
-## 🚀 Single-Command Deployment
+## Architecture
 
-The entire stack—Azure infrastructure, AKS cluster, GPU operator, Helm charts, data ingestion, and agent UI—is deployed automatically.
-
-### Prerequisites
-
-1. **Quota**: Your Azure subscription must have quota for AKS nodes (e.g., `Standard_D4s_v3` for system, `Standard_NC24ads_A100_v4` or equivalent for GPU).
-2. **Tools**: `az`, `kubectl`, `helm`, `jq`, `make`.
-3. **NGC Key**: An NVIDIA NGC API key to pull enterprise NIM containers.
-4. **ANF Provider**: Ensure `Microsoft.NetApp` is registered in your Azure subscription.
-
-### Deploy
-
-```bash
-# 1. Copy the template and fill in your details
-cp .env.template .env
-
-# 2. Deploy the architecture
-make deploy NGC_API_KEY=your_key_here
+```
+                           ┌──────────────────────────────────────┐
+                           │       Streamlit UI (Port 8501)       │
+                           │    Azure AD Auth  |  Agent Traces    │
+                           └──────────────┬───────────────────────┘
+                                          │
+                ┌─────────────────────────┼─────────────────────────┐
+                │          NeMo Agent Toolkit (nvidia-nat)          │
+                │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐  │
+                │  │ SEC Agent│ │Earnings  │ │  News Agent      │  │
+                │  │ (RAG)   │ │ Agent    │ │  (Market Data)   │  │
+                │  └────┬─────┘ └──────────┘ └──────────────────┘  │
+                │       │  ┌───────────┐  ┌─────────────────────┐  │
+                │       │  │Compliance │  │ Summarization Agent │  │
+                │       │  │  Agent    │  │ (Executive Brief)   │  │
+                │       │  └───────────┘  └─────────────────────┘  │
+                └───────┼──────────────────────────────────────────┘
+                        │
+        ┌───────────────┼───────────────────────────────────┐
+        │               ▼                                   │
+        │  ┌─────────────────────┐  ┌────────────────────┐  │
+        │  │  NV-EmbedQA NIM    │  │  Llama 3.1 8B NIM  │  │
+        │  │  (Vectorization)   │  │  (LLM Reasoning)   │  │
+        │  └─────────┬──────────┘  └────────────────────┘  │
+        │            │                                      │
+        │  ┌─────────▼──────────┐  ┌────────────────────┐  │
+        │  │ NV-RerankQA NIM   │  │ NeMo Retriever NIM │  │
+        │  │ (Cross-Encoder)   │  │ (PDF Extraction)   │  │
+        │  └─────────┬──────────┘  └────────────────────┘  │
+        │            │              AKS GPU Pool (V100)     │
+        └────────────┼─────────────────────────────────────┘
+                     │
+        ┌────────────▼─────────────────────────────────────┐
+        │  Milvus Vector DB (Cluster Mode)                  │
+        │  2x QueryNode | 2x DataNode | 3x etcd            │
+        │  IVF_FLAT COSINE Index on ANF NFS                 │
+        └────────────┬─────────────────────────────────────┘
+                     │
+        ┌────────────▼─────────────────────────────────────┐
+        │  Azure NetApp Files (Premium NFS)                 │
+        │  ┌──────────────┐  ┌───────────────────────────┐ │
+        │  │ SEC Filings  │  │ Milvus Vectors + WAL      │ │
+        │  │ (NFS + S3)   │  │ (Persistent Volume)       │ │
+        │  └──────────────┘  └───────────────────────────┘ │
+        │  Snapshot Policy: 6 hourly / 7 daily / 4 weekly  │
+        └──────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 📂 Repository Structure
+## Features
 
-| Path | Purpose |
-|------|---------|
-| `/infra` | Bicep templates for VNet, ANF, AKS, and Key Vault. |
-| `/kubernetes` | Helm values and K8s manifests for the cluster workloads. |
-| `/scripts` | Automated deployment and orchestration bash scripts. |
-| `/app/workflow.yaml` | NeMo Agent Toolkit declarative agent definitions. |
-| `/app/demo` | Python agent skill tools, data ingestion, and Streamlit UI. |
-| `/docs` | Deep-dive architectures, failure modes, and talk tracks. |
+**AI Processing** — 4 NVIDIA NIM microservices (Llama 3.1 8B, NV-EmbedQA-E5-v5, NV-RerankQA-Mistral-4B-v3, NeMo Retriever Parse) deployed as Helm charts on AKS GPU nodes.
+
+**RAG Pipeline with Reranker** — The retrieval pipeline embeds queries via NV-EmbedQA, over-fetches 3x candidates from Milvus, then rescores with the NV-RerankQA cross-encoder for 15-25% precision improvement. Toggleable via `RERANK_ENABLED` env var.
+
+**6-Agent Orchestration** — NeMo Agent Toolkit (`nvidia-nat`) state machine coordinates an Orchestrator, SEC Analyst, Earnings Evaluator, News Specialist, Compliance Officer, and Executive Summarizer.
+
+**Zero-ETL Storage** — Azure NetApp Files provides simultaneous NFS and S3 Object REST API access. Legacy systems write files via NFS; the AI pipeline reads them via `boto3` — no data movement.
+
+**Cluster-Mode Milvus** — High-availability vector DB with 2x query replicas, 2x data replicas, and 3-node etcd Raft consensus. Persisted on ANF NFS.
+
+**AKS Autoscaler** — GPU node pool scales between 0-4 nodes based on NIM pod demand, achieving 50-70% cost reduction during idle periods.
+
+**Azure AD Authentication** — MSAL-based OIDC login gate for the Streamlit UI (`AUTH_ENABLED=true`). Supports sign-in, session management, and sign-out.
+
+**Key Vault CSI Driver** — Secrets (NGC API key, Azure AD credentials, ANF S3 keys) auto-rotate from Azure Key Vault every 2 minutes via the Secrets Store CSI driver.
+
+**Prometheus + Grafana Monitoring** — Full observability stack with GPU metrics (DCGM Exporter), NIM inference latency/throughput, Milvus query performance, and custom AlphaAgent dashboard. Includes alerting rules for GPU underutilization, high memory, and latency spikes.
+
+**ANF Snapshot Policy** — Automated disaster recovery with 6 hourly, 7 daily, 4 weekly, and 12 monthly snapshots for both data and Milvus volumes.
 
 ---
 
-## 🧹 Teardown
+## Quick Start
 
-To avoid incurring ongoing Azure costs, strictly destroy the resource group after your session:
+### Prerequisites
+
+1. **Azure Subscription** with GPU VM quota (e.g., `Standard_NC6s_v3` or `Standard_NC24ads_A100_v4`)
+2. **CLI Tools**: `az`, `kubectl`, `helm`, `jq`, `make` (install via `az aks install-cli` for kubectl)
+3. **NVIDIA NGC API Key**: Get from [NGC Portal](https://org.ngc.nvidia.com/) — Profile — Setup — Generate API Key
+4. **Azure Provider**: `Microsoft.NetApp` registered in your subscription
+
+### Deploy
+
+```bash
+# 1. Clone and configure
+git clone https://github.com/DwirefS/BetterTogether-with-ANF.git
+cd BetterTogether-with-ANF
+cp .env.template .env
+# Edit .env and set NGC_API_KEY
+
+# 2. Rebuild ARM template if main.bicep was modified
+make bicep-build
+
+# 3. Deploy everything (10-step automated pipeline)
+make deploy NGC_API_KEY=nvapi-your-key-here
+```
+
+The deploy script provisions Azure infrastructure (VNet, AKS, ANF, Key Vault), installs the GPU Operator, deploys Milvus and 4 NIM microservices, sets up monitoring, builds the app image, loads SEC EDGAR filings, and prints the Streamlit URL.
+
+### Post-Deploy
+
+```bash
+make status        # Cluster health, NIM status, reranker integration, snapshot policy
+make logs          # Tail Streamlit app logs
+make monitoring    # Port-forward Grafana to localhost:3000
+make port-forward  # Port-forward Streamlit to localhost:8501
+make destroy       # Tear down everything
+```
+
+---
+
+## Repository Structure
+
+```
+.
+├── app/
+│   ├── ui.py                      # Streamlit UI with Azure AD auth gate
+│   ├── ingest.py                  # Vector ingestion pipeline (NIM Embed -> Milvus)
+│   ├── workflow.yaml              # NeMo Agent Toolkit 6-agent state machine
+│   ├── Dockerfile                 # App container (built via az acr build)
+│   ├── requirements.txt           # Python deps (streamlit, pymilvus, msal, etc.)
+│   └── alpha_tools/
+│       ├── nim_client.py          # NIM API client (LLM, Embed, Rerank, Retriever)
+│       ├── anf_milvus_search.py   # RAG retrieval with reranker integration
+│       ├── market_data.py         # Mock market data (with real API integration guide)
+│       └── compliance.py          # LLM-powered FINRA/SEC compliance checker
+├── infra/
+│   ├── main.bicep                 # Azure IaC (VNet, AKS, ANF, KV, Snapshots, CSI)
+│   ├── main.json                  # Compiled ARM template (from bicep build)
+│   └── parameters.json            # Deployment parameters
+├── kubernetes/
+│   ├── base/
+│   │   ├── namespace.yaml         # finserv-ai namespace
+│   │   ├── anf-pvc.yaml           # ANF NFS PersistentVolumes (envsubst)
+│   │   └── app-deployment.yaml    # App Deployment + Service + CSI mount
+│   ├── nim/
+│   │   ├── llm-values.yaml        # Llama 3.1 8B NIM Helm values
+│   │   ├── embed-values.yaml      # NV-EmbedQA NIM Helm values
+│   │   ├── rerank-values.yaml     # NV-RerankQA NIM Helm values
+│   │   └── retriever-values.yaml  # NeMo Retriever Parse NIM Helm values
+│   ├── milvus/
+│   │   └── values.yaml            # Milvus cluster mode Helm values
+│   ├── gpu-operator/
+│   │   └── values.yaml            # GPU Operator + DCGM Exporter values
+│   ├── secrets/
+│   │   └── keyvault-csi.yaml      # Azure Key Vault CSI SecretProviderClass
+│   └── monitoring/
+│       ├── values-kube-prometheus.yaml     # Prometheus + Grafana Helm values
+│       └── grafana-alphaagent-dashboard.json  # Custom Grafana dashboard
+├── scripts/
+│   ├── deploy.sh                  # 10-step end-to-end deployment pipeline
+│   ├── status.sh                  # Cluster health check
+│   ├── logs.sh                    # Log viewer
+│   ├── load-data.sh               # SEC EDGAR download + Milvus ingestion
+│   └── destroy.sh                 # Resource group teardown
+├── Makefile                       # CLI shortcuts
+├── .env.template                  # Environment variable template
+└── README.md                      # This file
+```
+
+---
+
+## Component Inventory
+
+| Layer | Component | Version | Purpose |
+|-------|-----------|---------|---------|
+| Infra | Azure VNet | — | Network isolation (AKS + ANF subnets) |
+| Infra | Azure NetApp Files | Premium NFS | Persistent storage for filings + vectors |
+| Infra | Azure Key Vault | — | Secret management with CSI auto-rotation |
+| Infra | AKS | 2023-10-01 API | Container orchestration with GPU autoscaler |
+| AI | NIM LLM (Llama 3.1 8B) | v1.1.2 | Reasoning engine |
+| AI | NIM Embed (NV-EmbedQA-E5-v5) | v1.0.0 | Text to 1024-dim vectors |
+| AI | NIM Rerank (NV-RerankQA-Mistral-4B-v3) | v1.0.0 | Cross-encoder rescoring |
+| AI | NIM Retriever Parse | v1.0.0 | Multimodal PDF extraction |
+| DB | Milvus | v2.4.0 | Vector database (cluster mode, IVF_FLAT) |
+| Agent | NeMo Agent Toolkit (nvidia-nat) | >=0.3.0 | 6-agent state machine orchestrator |
+| Ops | GPU Operator + DCGM Exporter | latest | GPU driver management + metrics |
+| Ops | kube-prometheus-stack | latest | Prometheus + Grafana + Alertmanager |
+| App | Streamlit | 1.42.0 | Interactive UI |
+| Auth | MSAL | >=1.28.0 | Azure AD OIDC authentication |
+
+---
+
+## Cost Optimization
+
+The architecture includes several cost-saving features for demo/development use:
+
+- **GPU Autoscaler**: Scales to 0 GPU nodes when idle (~$0 when not running inference)
+- **CPU-only Milvus**: Uses IVF_FLAT index instead of GPU_CAGRA (saves 1 GPU node)
+- **Standard ANF tier**: Uses Standard instead of Premium/Ultra (sufficient for demo data volumes)
+- **Mock market data**: Avoids expensive Bloomberg/Refinitiv API subscriptions
+- **V100 (NC6s_v3)**: ~$0.90/hr vs A100 at ~$3.67/hr (8B model fits in 16GB VRAM with NIM quantization)
+
+---
+
+## Teardown
 
 ```bash
 make destroy
 ```
 
+This deletes the entire resource group including all Azure resources. ANF volumes, AKS cluster, Key Vault, and all data will be permanently removed.
+
 ---
 
-## 📜 License
+## License
 
 MIT License. See `LICENSE` for details.
-
-## Hands-On Lab Guide
-
-For a detailed, step-by-step workshop guide on deploying and testing this architecture, please refer to [docs/LAB_GUIDE.md](docs/LAB_GUIDE.md).
-
----
-
-## 🌎 Full "Better Together" Context
-
-The AlphaAgent repository is designed to showcase the pinnacle of enterprise sovereign AI by integrating three world-class pillars:
-
-### 1. Azure NetApp Files (Zero Data Movement)
-
-Historically, Financial Services Institutions (FSIs) have suffered from the "ETL paradigm"—duplicating massive troves of on-premises NAS PDFs into cloud object stores just to make them accessible to AI. AlphaAgent eliminates this using the **ANF File/Object Duality** feature.
-Legacy batch jobs download SEC filings (10-K, 10-Q) and write them locally to ANF using the standard `NFSv4.1` POSIX protocol. Simultaneously, the AlphaAgent AI Python pipeline (`ingest.py`) reads those exact same files using `boto3` via the **S3-Compatible Object REST API**. This proves **Zero Data Movement (Zero-ETL)**, massively cutting storage costs and compliance risks.
-
-### 2. NVIDIA AI (Hardware Acceleration & Sovereignty)
-
-The stack abandons public API endpoints in favor of 100% data sovereignty via **NVIDIA NIM Microservices** deployed locally on Azure Kubernetes Service (AKS) GPU node pools (`Standard_NC24ads_A100_v4`).
-
-- **NeMo Retriever** handles complex multimodal extraction of financial charts and tables from the raw PDFs.
-- **Milvus Vector Database** is physically persisted on the ANF NFS premium tiers, but logically supercharged by the **NVIDIA `cuVS` (RAPIDS) algorithm** (`GPU_CAGRA` index) to provide sub-millisecond similarity search across billion-scale vector datasets.
-- **Nemotron Super 49B / Llama 3.1** acts as the local LLM reasoning engine.
-
-### 3. NeMo Agent Toolkit (Agentic Workflows)
-
-Replacing rigid, linear RAG scripts, the application leverages the `nvidia-nat` open-source framework. A declarative YAML state machine orchestrates 6 distinct agents: an Orchestrator, SEC Fundamental Analyst, Earnings Sentiment Evaluator, Market News Specialist, Regulatory Compliance Officer, and Executive Summarizer. This provides highly parallelized, hallucination-resistant financial research generation.
-
----
-
-## 🧠 Building AlphaAgent: The Engineering Journey
-
-During the development of this repository, several critical design decisions were made to elevate this from a "toy" RAG application to a production-grade enterprise system:
-
-1. **Rejecting the Single-VM Shortcut:** Initially, the architecture was conceived as a single-VM Docker Compose deployment. We explicitly rejected this. Enterprise AI demands high availability, rolling updates, and scalable node pools. We rebuilt the infrastructure using **Bicep** to target **Azure Kubernetes Service (AKS)**, utilizing Helm for the NVIDIA GPU Operator, Milvus, and the various NIM microservices. The single-VM code is preserved in `backup/single-vm/` for reference, but the core path is purely Kubernetes.
-2. **Battling Hallucinations with NeMo Agent Toolkit (`nvidia-nat`):** Simple Python loop agents are prone to catastrophic hallucination when cross-referencing vast amounts of financial data. By integrating the NVIDIA NeMo Agent Toolkit and a declarative `workflow.yaml`, we implemented a strict state machine. We created dedicated tools (`market_data.py`, `compliance.py`) to ground the agents. Specifically, the **Compliance Agent** acts as an LLM-driven adversarial check to ensure the Orchestrator's final output adheres to strict FINRA/SEC regulatory guidelines before presenting it to the user.
-3. **The S3 `boto3` Integration:** To truly prove the Azure NetApp Files "Zero-ETL" value proposition, we didn't just talk about it—we built it. We modified the `ingest.py` pipeline to specifically query the ANF Object REST API using standard `boto3` calls, validating that AI workloads can treat on-prem NAS folders as cloud-native S3 buckets instantly, with a seamless fallback to POSIX NFS mounts.
-4. **NVIDIA cuVS Acceleration:** We identified that standard CPU-based HNSW vector indexes become a bottleneck as vector counts scale into the hundreds of millions. We updated the Milvus Helm charts and the ingestion script to leverage the NVIDIA RAPIDS `cuVS` algorithm (`GPU_CAGRA` index mode), completely shifting similarity search compute to the GPU tier for sub-millisecond lookups.
-5. **Observability is Mandatory:** We integrated execution tracing into the Streamlit UI, allowing analysts to watch the agent chain-of-thought routing in real time, exposing which internal tools (Milvus, web search, compliance checks) were executed and how long they took.

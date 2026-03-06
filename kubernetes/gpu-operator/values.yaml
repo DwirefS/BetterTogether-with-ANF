@@ -30,4 +30,6 @@ devicePlugin:
 dcgmExporter:
   enabled: true
   serviceMonitor:
-    enabled: false
+    enabled: true    # Expose DCGM metrics to Prometheus for GPU monitoring dashboards
+    # Metrics include: GPU utilization, memory usage, temperature, power draw,
+    # SM clock frequency, PCIe throughput — critical for NIM inference observability

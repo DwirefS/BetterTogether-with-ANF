@@ -48,7 +48,7 @@ for ticker in ['AAPL', 'MSFT', 'TSLA']:
       - name: anf-data
         persistentVolumeClaim:
           claimName: anf-data-pvc
-  backoffLimit: 1
+  backoffLimit: 4  # SEC EDGAR may rate-limit; retry up to 4 times
 EOF
 
 echo "✅ EDGAR Data Loader Job submitted to AKS."
@@ -60,7 +60,7 @@ POD_NAME=$(kubectl get pods -n finserv-ai -l app=alpha-agent -o jsonpath='{.item
 
 if [ -n "$POD_NAME" ]; then
     echo "Executing NeMo Retriever ingestion on pod: $POD_NAME"
-    kubectl exec -n finserv-ai $POD_NAME -- python /app/ingest.py
+    kubectl exec -n finserv-ai $POD_NAME -- python /app/ingest.py --force
     echo "✅ Ingestion complete. Vectors are stored securely in Milvus on ANF."
 else
     echo "❌ Error: Could not find the alpha-agent pod to run ingestion. Make sure 'make deploy' was fully successful."

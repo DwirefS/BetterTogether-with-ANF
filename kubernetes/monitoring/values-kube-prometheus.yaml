@@ -1,0 +1,263 @@
+# -------------------------------------------------------------------------------------
+# kube-prometheus-stack Helm Values for AlphaAgent on AKS
+# -------------------------------------------------------------------------------------
+# Deploys Prometheus + Grafana for full observability of:
+#   - AKS cluster health and resource utilization
+#   - GPU node metrics (via NVIDIA DCGM Exporter + GPU Operator ServiceMonitor)
+#   - NIM microservice latency, throughput, and error rates
+#   - Milvus vector DB performance (query latency, index size, compaction)
+#   - NeMo Agent Toolkit orchestration traces
+#
+# Install:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm install monitoring prometheus-community/kube-prometheus-stack \
+#     -n monitoring --create-namespace \
+#     -f kubernetes/monitoring/values-kube-prometheus.yaml
+#
+# Access Grafana:
+#   kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80
+#   Default login: admin / (see grafana.adminPassword below)
+# -------------------------------------------------------------------------------------
+
+# --- Prometheus ---
+prometheus:
+  prometheusSpec:
+    # Retention: keep 15 days of metrics for post-demo analysis
+    retention: 15d
+    # Storage: use Azure Managed Disk (not ANF) for Prometheus TSDB
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: managed-csi
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+    # Resource limits for the Prometheus server pod
+    resources:
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+      requests:
+        cpu: "500m"
+        memory: "2Gi"
+    # Scrape all ServiceMonitors across namespaces (including finserv-ai, gpu-operator)
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+  # Additional scrape configs for NVIDIA DCGM Exporter and NIM endpoints
+  additionalServiceMonitors:
+    # NVIDIA DCGM Exporter — GPU utilization, memory, temperature, power
+    - name: dcgm-exporter
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: dcgm-exporter
+      namespaceSelector:
+        matchNames:
+          - gpu-operator
+      endpoints:
+        - port: metrics
+          interval: 15s
+          path: /metrics
+
+    # NIM LLM (Llama 3.1 8B) — inference latency, tokens/sec, queue depth
+    - name: nim-llm-metrics
+      selector:
+        matchLabels:
+          app: nim-llm
+      namespaceSelector:
+        matchNames:
+          - finserv-ai
+      endpoints:
+        - port: metrics
+          interval: 30s
+          path: /metrics
+
+    # NIM Embedding — vectorization throughput
+    - name: nim-embed-metrics
+      selector:
+        matchLabels:
+          app: nim-embed
+      namespaceSelector:
+        matchNames:
+          - finserv-ai
+      endpoints:
+        - port: metrics
+          interval: 30s
+          path: /metrics
+
+    # NIM Reranker — reranking latency, batch sizes
+    - name: nim-rerank-metrics
+      selector:
+        matchLabels:
+          app: nim-rerank
+      namespaceSelector:
+        matchNames:
+          - finserv-ai
+      endpoints:
+        - port: metrics
+          interval: 30s
+          path: /metrics
+
+    # Milvus — query latency, collection stats, compaction metrics
+    - name: milvus-metrics
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: milvus
+      namespaceSelector:
+        matchNames:
+          - finserv-ai
+      endpoints:
+        - port: metrics
+          interval: 30s
+          path: /metrics
+
+# --- Grafana ---
+grafana:
+  enabled: true
+  adminPassword: "AlphaAgent-Demo-2024"  # Change in production; store in Key Vault
+  persistence:
+    enabled: true
+    storageClassName: managed-csi
+    size: 10Gi
+
+  # Pre-load dashboards for GPU monitoring and NIM observability
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'nvidia-gpu'
+          orgId: 1
+          folder: 'NVIDIA GPU'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/nvidia-gpu
+        - name: 'alphaagent'
+          orgId: 1
+          folder: 'AlphaAgent'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/alphaagent
+
+  # Import community dashboards by ID from grafana.com
+  dashboards:
+    nvidia-gpu:
+      # NVIDIA DCGM Exporter Dashboard (official — GPU util, memory, temp, power)
+      nvidia-dcgm:
+        gnetId: 12239
+        revision: 2
+        datasource: Prometheus
+    alphaagent:
+      # Milvus Dashboard (community — query latency, compaction, segment stats)
+      milvus:
+        gnetId: 17534
+        revision: 1
+        datasource: Prometheus
+
+  # Mount the custom AlphaAgent RAG Pipeline dashboard from ConfigMap.
+  # The ConfigMap is created by deploy.sh before Helm install:
+  #   kubectl create configmap grafana-dashboard-alphaagent \
+  #     --from-file=alphaagent-rag.json=kubernetes/monitoring/grafana-alphaagent-dashboard.json \
+  #     -n monitoring --dry-run=client -o yaml | kubectl apply -f -
+  dashboardsConfigMaps:
+    alphaagent-rag: "grafana-dashboard-alphaagent"
+
+  # Grafana sidecar picks up ConfigMaps with label grafana_dashboard=1
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      folder: /tmp/dashboards
+      searchNamespace: monitoring
+
+  # Grafana resource limits
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+
+# --- Alertmanager ---
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: managed-csi
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+    resources:
+      limits:
+        cpu: "200m"
+        memory: "256Mi"
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+
+# --- Node Exporter (for host-level CPU/memory/disk metrics) ---
+nodeExporter:
+  enabled: true
+
+# --- kube-state-metrics (for K8s object state: pods, deployments, etc.) ---
+kubeStateMetrics:
+  enabled: true
+
+# --- PrometheusRules: Custom alerts for AlphaAgent ---
+additionalPrometheusRulesMap:
+  alphaagent-alerts:
+    groups:
+      - name: gpu-alerts
+        rules:
+          # Alert when GPU utilization drops below 10% for 30 min (cost waste)
+          - alert: GPUUnderutilized
+            expr: DCGM_FI_DEV_GPU_UTIL < 10
+            for: 30m
+            labels:
+              severity: warning
+            annotations:
+              summary: "GPU underutilized on {{ $labels.instance }}"
+              description: "GPU utilization has been below 10% for 30 minutes. Consider scaling down GPU nodes."
+
+          # Alert when GPU memory is above 90% (risk of OOM)
+          - alert: GPUMemoryHigh
+            expr: (DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_FREE) > 9
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "GPU memory >90% on {{ $labels.instance }}"
+              description: "GPU memory utilization is critically high. NIM inference may fail."
+
+      - name: nim-alerts
+        rules:
+          # Alert when NIM LLM p99 latency exceeds 10 seconds
+          - alert: NIMLLMHighLatency
+            expr: histogram_quantile(0.99, rate(nim_inference_duration_seconds_bucket{service="nim-llm"}[5m])) > 10
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "NIM LLM p99 latency > 10s"
+              description: "Llama 3.1 8B inference latency is high. Check GPU resources and batch queue."
+
+      - name: milvus-alerts
+        rules:
+          # Alert when Milvus query latency exceeds 2 seconds
+          - alert: MilvusHighQueryLatency
+            expr: rate(milvus_proxy_sq_latency_sum[5m]) / rate(milvus_proxy_sq_latency_count[5m]) > 2
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Milvus query latency > 2s"
+              description: "Vector search is slow. Check ANF NFS performance and index health."

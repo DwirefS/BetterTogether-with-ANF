@@ -1,7 +1,13 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: finserv-ai
+# Azure NetApp Files PersistentVolumes & Claims
+# ANF NFS IPs and export paths are injected via envsubst from Bicep deployment outputs.
+#
+# [MOVED] The Namespace definition that was originally here has been extracted to
+# kubernetes/base/namespace.yaml so deploy.sh can apply it independently before
+# secrets are created. Original block was:
+#   apiVersion: v1
+#   kind: Namespace
+#   metadata:
+#     name: finserv-ai
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -12,6 +18,8 @@ spec:
     storage: 1Ti
   accessModes:
     - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
   nfs:
     server: ${ANF_DATA_IP}
     path: /${ANF_DATA_VOL}
@@ -25,6 +33,7 @@ spec:
   accessModes:
     - ReadWriteMany
   storageClassName: ""
+  volumeName: anf-data-pv
   resources:
     requests:
       storage: 1Ti
@@ -38,6 +47,8 @@ spec:
     storage: 1Ti
   accessModes:
     - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
   nfs:
     server: ${ANF_MILVUS_IP}
     path: /${ANF_MILVUS_VOL}
@@ -51,6 +62,7 @@ spec:
   accessModes:
     - ReadWriteMany
   storageClassName: ""
+  volumeName: anf-milvus-pv
   resources:
     requests:
       storage: 1Ti

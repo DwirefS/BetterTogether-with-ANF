@@ -15,26 +15,70 @@ spec:
       labels:
         app: alpha-agent
     spec:
+      imagePullSecrets:
+        - name: ngc-secret
       containers:
       - name: streamlit
-        # Image will be built and pushed to target ACR or Docker Hub during deployment
+        # Image is built and pushed to ACR during deploy.sh Step 5/5
+        # [ORIGINAL] Image will be built and pushed to target ACR or Docker Hub during deployment
         image: alphaagent/app:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8501
         env:
+        # NGC API Key for NIM client calls inside the app
+        - name: NGC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ngc-api-key
+              key: NGC_API_KEY
         # Pointers to internal K8s NIM services
         - name: NIM_LLM_URL
           value: "http://nim-llm:8000/v1"
         - name: NIM_EMBED_URL
           value: "http://nim-embed:8000/v1"
+        - name: NIM_RERANK_URL
+          value: "http://nim-rerank:8000/v1"
+        - name: NIM_RETRIEVER_URL
+          value: "http://nim-retriever:8000/v1"
         - name: MILVUS_HOST
           value: "milvus"
         - name: MILVUS_PORT
           value: "19530"
+        # Reranker integration: enables NV-RerankQA-Mistral-4B-v3 cross-encoder
+        # in the RAG pipeline for 15-25% precision improvement. Set to "false"
+        # to save GPU resources if the reranker NIM pod is not deployed.
+        - name: RERANK_ENABLED
+          value: "true"
+        - name: RERANK_OVERFETCH_FACTOR
+          value: "3"
         - name: ANF_MOUNT_PATH
           value: "/mnt/anf/data"
-        # ANF Object REST API credentials (mapped from Key Vault initially in script, or secrets here)
+        # Azure AD Authentication (set AUTH_ENABLED=true to enforce login)
+        - name: AUTH_ENABLED
+          value: "false"  # Set to "true" in production after configuring Entra ID app registration
+        - name: AZURE_AD_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: azure-ad-secret
+              key: client_id
+              optional: true
+        - name: AZURE_AD_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: azure-ad-secret
+              key: client_secret
+              optional: true
+        - name: AZURE_AD_TENANT_ID
+          valueFrom:
+            secretKeyRef:
+              name: azure-ad-secret
+              key: tenant_id
+              optional: true
+        - name: AZURE_AD_REDIRECT_URI
+          value: "http://localhost:8501"  # Update to your LoadBalancer IP or domain
+        # ANF Object REST API credentials (optional — configured post-deployment)
+        # [ORIGINAL] ANF Object REST API credentials (mapped from Key Vault initially in script, or secrets here)
         - name: ANF_OBJECT_REST_ENDPOINT
           valueFrom:
             secretKeyRef:
@@ -56,20 +100,46 @@ spec:
         volumeMounts:
         - name: anf-data
           mountPath: /mnt/anf/data
+        # Key Vault CSI: mounts secrets from Azure Key Vault with auto-rotation.
+        # Requires the azure-keyvault-secrets-provider AKS addon to be enabled.
+        - name: kv-secrets
+          mountPath: /mnt/secrets
+          readOnly: true
+        readinessProbe:
+          httpGet:
+            path: /_stcore/health
+            port: 8501
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /_stcore/health
+            port: 8501
+          initialDelaySeconds: 30
+          periodSeconds: 30
       volumes:
       - name: anf-data
         persistentVolumeClaim:
           claimName: anf-data-pvc
+      - name: kv-secrets
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: azure-kv-secrets
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: streamlit-ui
   namespace: finserv-ai
+  labels:
+    app: alpha-agent
 spec:
-  type: LoadBalancer # For demo accessibility, otherwise ClusterIP behind Ingress
+  type: LoadBalancer  # For demo accessibility, otherwise ClusterIP behind Ingress
   ports:
   - port: 8501
     targetPort: 8501
+    protocol: TCP
   selector:
     app: alpha-agent
