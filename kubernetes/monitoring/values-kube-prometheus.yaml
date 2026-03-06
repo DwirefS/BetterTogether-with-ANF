@@ -115,7 +115,9 @@ prometheus:
 # --- Grafana ---
 grafana:
   enabled: true
-  adminPassword: "AlphaAgent-Demo-2024"  # Change in production; store in Key Vault
+  # IMPORTANT: Set via --set grafana.adminPassword="..." at install time, or store in Key Vault.
+  # DO NOT commit a real password here — this file is tracked in a public repo.
+  adminPassword: ""  # Override at deploy time: helm install --set grafana.adminPassword=<your-pw>
   persistence:
     enabled: true
     storageClassName: managed-csi

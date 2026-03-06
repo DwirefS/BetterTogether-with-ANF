@@ -99,4 +99,4 @@ fi
 echo ""
 echo "--- Grafana Dashboard ---"
 echo "  Run: kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80"
-echo "  Login: admin / AlphaAgent-Demo-2024"
+echo "  Login: admin / <password set via GRAFANA_ADMIN_PASSWORD>"

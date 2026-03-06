@@ -320,15 +320,17 @@ kubectl label configmap grafana-dashboard-alphaagent \
     grafana_dashboard=1 \
     --overwrite 2>/dev/null || true
 
+GRAFANA_PW="${GRAFANA_ADMIN_PASSWORD:-$(openssl rand -base64 16)}"
 helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
     --namespace monitoring \
     -f kubernetes/monitoring/values-kube-prometheus.yaml \
+    --set grafana.adminPassword="$GRAFANA_PW" \
     --wait --timeout 10m \
     || echo "  WARNING: Monitoring stack install had issues. Check: kubectl get pods -n monitoring"
 
 echo "  Prometheus + Grafana deployed."
 echo "  Grafana: kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80"
-echo "  Default login: admin / AlphaAgent-Demo-2024"
+echo "  Default login: admin / <password set via GRAFANA_ADMIN_PASSWORD>"
 
 # ------------------------------------------------------------------
 # Step 7/10: Build and Deploy the AlphaAgent Application
