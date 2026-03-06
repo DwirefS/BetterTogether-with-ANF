@@ -21,8 +21,9 @@ logger = logging.getLogger(__name__)
 # Config
 DATA_DIR = os.getenv("ANF_MOUNT_PATH", "/mnt/anf/data")
 MILVUS_HOST = os.getenv("MILVUS_HOST", "localhost")
-MILVUS_PORT = os.getenv("MILVUS_PORT", "19530")
+MILVUS_PORT = int(os.getenv("MILVUS_PORT", "19530"))
 COLLECTION_NAME = "sec_filings"
+NIM_EMBED_URL = os.getenv("NIM_EMBED_URL", "http://nim-embed:8000/v1")
 
 # ANF Object REST API Config (Optional S3 duality)
 ANF_OBJECT_REST_ENDPOINT = os.getenv("ANF_OBJECT_REST_ENDPOINT")
@@ -31,21 +32,48 @@ ANF_SECRET_KEY = os.getenv("ANF_SECRET_KEY")
 ANF_BUCKET_NAME = os.getenv("ANF_BUCKET_NAME", "fsi-dropzone")
 
 
-def setup_milvus():
+def detect_embedding_dim() -> int:
+    """Query the NIM embedding endpoint to detect actual output dimension.
+    Falls back to 1024 if the endpoint isn't reachable yet."""
+    import requests as req
+    try:
+        resp = req.post(
+            f"{NIM_EMBED_URL}/embeddings",
+            json={"input": ["dimension probe"], "model": "nv-embedqa-e5-v5"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            vec = resp.json()["data"][0]["embedding"]
+            dim = len(vec)
+            logger.info(f"Detected NIM embedding dimension: {dim}")
+            return dim
+    except Exception as e:
+        logger.warning(f"Could not probe NIM embed endpoint: {e}")
+    logger.info("Defaulting to embedding dim=1024 (update if NIM uses 4096)")
+    return 1024
+
+
+def setup_milvus(force: bool = False):
     logger.info(f"Connecting to Milvus at {MILVUS_HOST}:{MILVUS_PORT} (Backed by ANF)")
     connections.connect("default", host=MILVUS_HOST, port=MILVUS_PORT)
 
     if utility.has_collection(COLLECTION_NAME):
-        logger.info(
-            f"Collection {COLLECTION_NAME} exists. Dropping for fresh ingest..."
-        )
-        utility.drop_collection(COLLECTION_NAME)
+        if force:
+            logger.info(f"--force flag set. Dropping collection {COLLECTION_NAME}...")
+            utility.drop_collection(COLLECTION_NAME)
+        else:
+            logger.info(
+                f"Collection {COLLECTION_NAME} already exists. Reusing (pass --force to drop and recreate)."
+            )
+            return Collection(COLLECTION_NAME)
+
+    embed_dim = detect_embedding_dim()
 
     fields = [
         FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
         FieldSchema(
-            name="vector", dtype=DataType.FLOAT_VECTOR, dim=1024
-        ),  # NV-EmbedQA-E5-v5 is usually 1024 or 4096 depending on variant, assuming 1024 for standard E5
+            name="vector", dtype=DataType.FLOAT_VECTOR, dim=embed_dim
+        ),  # Auto-detected from NIM endpoint; falls back to 1024
         FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=65535),
         FieldSchema(name="source", dtype=DataType.VARCHAR, max_length=500),
     ]
@@ -53,11 +81,18 @@ def setup_milvus():
     schema = CollectionSchema(fields, "SEC Filings extracted via NeMo Retriever")
     collection = Collection(COLLECTION_NAME, schema)
 
-    # Create Index leveraging NVIDIA cuVS (RAPIDS) GPU acceleration
+    # [COST OPTIMIZATION] Using CPU IVF_FLAT index for demo-scale data.
+    # This avoids needing a GPU-enabled Milvus image and saves one GPU node.
+    # [ORIGINAL] GPU_CAGRA index (requires milvusdb/milvus:*-gpu image + nvidia.com/gpu resource):
+    #   index_params = {
+    #       "metric_type": "COSINE",
+    #       "index_type": "GPU_CAGRA",
+    #       "params": {"intermediate_graph_degree": 64, "graph_degree": 32},
+    #   }
     index_params = {
         "metric_type": "COSINE",
-        "index_type": "GPU_CAGRA",  # Using NVIDIA cuVS algorithm over standard CPU HNSW
-        "params": {"intermediate_graph_degree": 64, "graph_degree": 32},
+        "index_type": "IVF_FLAT",
+        "params": {"nlist": 128},
     }
     collection.create_index(field_name="vector", index_params=index_params)
     return collection
@@ -141,5 +176,7 @@ def ingest_documents(collection):
 
 
 if __name__ == "__main__":
-    col = setup_milvus()
+    import sys
+    force = "--force" in sys.argv
+    col = setup_milvus(force=force)
     ingest_documents(col)

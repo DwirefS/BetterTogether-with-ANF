@@ -1,0 +1,370 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "AlphaAgent RAG Pipeline — NIM Inference, Reranker, Milvus, GPU Metrics",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "RAG Pipeline Overview",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "NIM LLM — Inference Latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(nim_inference_duration_seconds_bucket{service=\"nim-llm\"}[5m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nim_inference_duration_seconds_bucket{service=\"nim-llm\"}[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(nim_inference_duration_seconds_bucket{service=\"nim-llm\"}[5m])) by (le))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "title": "NIM LLM — Tokens/sec Throughput",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 100 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(nim_generation_tokens_total{service=\"nim-llm\"}[5m]))",
+          "legendFormat": "Output tokens/sec",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(nim_prompt_tokens_total{service=\"nim-llm\"}[5m]))",
+          "legendFormat": "Input tokens/sec",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "NIM Reranker — Requests/sec & Latency",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nim_inference_duration_seconds_bucket{service=\"nim-rerank\"}[5m])) by (le))",
+          "legendFormat": "Rerank p95 latency",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(nim_inference_requests_total{service=\"nim-rerank\"}[5m]))",
+          "legendFormat": "Rerank req/sec",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "NIM Embedding — Vectorization Throughput",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "targets": [
+        {
+          "expr": "sum(rate(nim_inference_requests_total{service=\"nim-embed\"}[5m]))",
+          "legendFormat": "Embed req/sec",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(nim_inference_duration_seconds_bucket{service=\"nim-embed\"}[5m])) by (le))",
+          "legendFormat": "Embed p95 latency (s)",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "GPU Metrics",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "GPU Utilization (%) — All Nodes",
+      "type": "gauge",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 18 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "green", "value": 50 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "avg(DCGM_FI_DEV_GPU_UTIL)",
+          "legendFormat": "Avg GPU %",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "GPU Memory Used (GiB)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 18 },
+      "fieldConfig": {
+        "defaults": { "unit": "decgbytes" }
+      },
+      "targets": [
+        {
+          "expr": "DCGM_FI_DEV_FB_USED / 1024",
+          "legendFormat": "{{gpu}} Used (GiB)",
+          "refId": "A"
+        },
+        {
+          "expr": "(DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) / 1024",
+          "legendFormat": "{{gpu}} Total (GiB)",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "GPU Temperature (°C)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 18 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 85 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "DCGM_FI_DEV_GPU_TEMP",
+          "legendFormat": "{{gpu}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "GPU Power Draw (W)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 18 },
+      "fieldConfig": {
+        "defaults": { "unit": "watt" }
+      },
+      "targets": [
+        {
+          "expr": "DCGM_FI_DEV_POWER_USAGE",
+          "legendFormat": "{{gpu}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Milvus Vector DB",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "Milvus Query Latency (p95)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(milvus_proxy_sq_latency_bucket[5m])) by (le))",
+          "legendFormat": "Search p95",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(milvus_proxy_sq_latency_bucket[5m])) by (le))",
+          "legendFormat": "Search p50",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "Milvus Operations — Insert vs Search Rate",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "targets": [
+        {
+          "expr": "sum(rate(milvus_proxy_sq_req_count[5m]))",
+          "legendFormat": "Search req/sec",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(milvus_proxy_mutation_req_count[5m]))",
+          "legendFormat": "Insert req/sec",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "title": "AKS Autoscaler",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 33 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "title": "GPU Node Count (Autoscaler)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 34 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 1 },
+              { "color": "yellow", "value": 3 },
+              { "color": "red", "value": 4 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(kube_node_labels{label_agentpool=\"gpupool\"})",
+          "legendFormat": "GPU Nodes",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Cost Estimation (GPU hours/day)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 34 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 1
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(kube_node_labels{label_agentpool=\"gpupool\"}) * 24",
+          "legendFormat": "GPU node-hours/day",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Pending Pods (triggers scale-up)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 34 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 3 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(kube_pod_status_phase{namespace=\"finserv-ai\",phase=\"Pending\"}) or vector(0)",
+          "legendFormat": "Pending Pods",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["alphaagent", "nvidia", "nim", "rag", "gpu"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "AlphaAgent — RAG Pipeline & GPU Observability",
+  "uid": "alphaagent-rag-pipeline",
+  "version": 1
+}

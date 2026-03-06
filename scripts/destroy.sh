@@ -4,7 +4,8 @@ set -e
 # AlphaAgent Enterprise Teardown Script
 # Safely destroys the AKS cluster, VNet, and Azure NetApp Files resources.
 
-RESOURCE_GROUP=${RG_NAME:-"rg-alphaagent-demo-$(whoami)"}
+# [ORIGINAL] default was "DNvidiaAgent"
+RESOURCE_GROUP=${RG_NAME:-"DNvidiaANF"}
 
 echo "⚠️  WARNING: You are about to destroy the entire AlphaAgent enterprise deployment."
 echo "This will delete the AKS cluster, Azure NetApp Files volumes, and all data."

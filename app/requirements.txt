@@ -7,7 +7,10 @@ streamlit==1.42.0
 requests>=2.31.0
 
 # NVIDIA NeMo Agent Toolkit
-nvidia-nat>=0.3.0
+# nvidia-nat requires NGC private PyPI index or NVAIE license.
+# Install separately: pip install nvidia-nat>=0.3.0 --extra-index-url <NGC_PYPI_URL>
+# The app has a graceful fallback if nvidia-nat is not installed (see ui.py line 187).
+# nvidia-nat>=0.3.0
 
 # Vector Database (ANF PVC Backend)
 pymilvus>=2.4.0
@@ -24,3 +27,8 @@ python-dotenv>=1.0.0
 pyyaml>=6.0.0
 tenacity>=8.0.0
 boto3>=1.34.0
+
+# Azure AD / Entra ID Authentication (OIDC)
+# Required when AUTH_ENABLED=true. Uses Microsoft Authentication Library (MSAL)
+# with confidential client flow for enterprise SSO.
+msal>=1.28.0

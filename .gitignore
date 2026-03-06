@@ -31,3 +31,54 @@ Thumbs.db
 
 # Seed research (reference only, not deployed)
 seed research/
+
+# ============================================================
+# CREDENTIAL & DEPLOYMENT SAFETY — PUBLIC REPO PROTECTION
+# Anything that could hold subscription IDs, tenant IDs,
+# NGC API keys, passwords, or deployment-specific state
+# MUST be listed here. The origin repo is PUBLIC.
+# ============================================================
+
+# Lab journal / deployment notes (may contain IPs, resource names, debug output)
+LabLessons.md
+
+# Actual .env files with real credentials (template is safe, .env is not)
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Azure deployment outputs / state (may contain subscription IDs, resource IDs)
+infra/*.outputs.json
+infra/deployment-*.json
+
+# Kubeconfig and cluster credentials
+kubeconfig
+kubeconfig.*
+*.kubeconfig
+
+# NGC / NVIDIA credentials
+ngc-config
+.ngc/
+
+# Helm release state (may contain secrets in values)
+*.tgz
+charts/
+
+# Terraform / IaC state (if ever used alongside Bicep)
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Azure CLI cache / tokens
+.azure/
+
+# Temporary deployment artifacts
+tmp/
+*.tmp

@@ -1,11 +1,29 @@
-# Values for NVIDIA NeMo Retriever (Multimodal Document Extraction)
+# Values for NVIDIA NeMo Retriever Parse (Multimodal Document Extraction)
+# This NIM extracts text/tables from PDFs. The app falls back to PyPDFLoader if unavailable.
+#
+# [ORIGINAL] Used image.pullSecrets and env secretKeyRef for NGC_API_KEY
+# [NOTE] The Retriever Parse NIM may use a different Helm chart structure
+# than the standard nim-llm chart. We keep the generic values approach
+# and fall back to kubectl apply if Helm chart is not available.
 
 image:
   repository: nvcr.io/nim/nvidia/nemo-retriever-parse
-  tag: 1.0.0
+  tag: "1.0.0"
   pullPolicy: IfNotPresent
-  pullSecrets:
-    - name: ngc-secret
+
+imagePullSecrets:
+  - name: ngc-secret
+
+model:
+  ngcAPISecret: ngc-api-key
+
+# [ORIGINAL env-based approach]
+# env:
+#   - name: NGC_API_KEY
+#     valueFrom:
+#       secretKeyRef:
+#         name: ngc-api-key
+#         key: NGC_API_KEY
 
 resources:
   limits:
@@ -13,13 +31,33 @@ resources:
   requests:
     nvidia.com/gpu: 1
 
-env:
-  - name: NGC_API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: ngc-secret
-        key: NGC_API_KEY
+persistence:
+  enabled: true
 
 service:
   type: ClusterIP
   port: 8000
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+
+readinessProbe:
+  httpGet:
+    path: /v1/health/ready
+    port: 8000
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  failureThreshold: 3
+
+livenessProbe:
+  httpGet:
+    path: /v1/health/live
+    port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 30
+  failureThreshold: 5
+
+startupProbe:
+  failureThreshold: 60
+  periodSeconds: 10

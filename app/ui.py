@@ -1,7 +1,10 @@
 import streamlit as st
 import os
+import logging
 from alpha_tools.nim_client import NIMClient
 from pymilvus import connections, utility
+
+logger = logging.getLogger(__name__)
 
 # ----------------------------------------------------
 # Project AlphaAgent: Financial Research Copilot
@@ -13,6 +16,118 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# -------------------------------------------------------------------------------------
+# Azure AD / Entra ID Authentication Gate (OIDC)
+# -------------------------------------------------------------------------------------
+# Set AUTH_ENABLED=true and provide AZURE_AD_* env vars to enforce login.
+# When disabled (default for local dev), the app is accessible without login.
+#
+# Required environment variables when AUTH_ENABLED=true:
+#   AZURE_AD_CLIENT_ID     — App registration client ID from Entra ID
+#   AZURE_AD_CLIENT_SECRET — App registration client secret
+#   AZURE_AD_TENANT_ID     — Azure AD tenant ID (or 'common' for multi-tenant)
+#   AZURE_AD_REDIRECT_URI  — e.g. https://<your-app-url>/_stcore/auth-callback
+#
+# To register the app:
+#   1. Go to portal.azure.com → Entra ID → App registrations → New registration
+#   2. Set redirect URI to your Streamlit app URL (e.g. http://localhost:8501)
+#   3. Under "Certificates & secrets", create a client secret
+#   4. Under "API permissions", add Microsoft Graph → User.Read (delegated)
+#   5. Store CLIENT_ID, CLIENT_SECRET, and TENANT_ID in Azure Key Vault
+#      (see kubernetes/secrets/keyvault-csi.yaml for CSI driver mount)
+# -------------------------------------------------------------------------------------
+
+AUTH_ENABLED = os.getenv("AUTH_ENABLED", "false").lower() in ("true", "1", "yes")
+
+
+def _check_azure_ad_auth() -> bool:
+    """
+    Validate Azure AD authentication using MSAL confidential client flow.
+    Returns True if user is authenticated or auth is disabled.
+    """
+    if not AUTH_ENABLED:
+        return True
+
+    # Check if already authenticated this session
+    if st.session_state.get("authenticated"):
+        return True
+
+    try:
+        import msal
+    except ImportError:
+        st.error(
+            "Authentication is enabled but `msal` is not installed. "
+            "Run: `pip install msal>=1.28.0`"
+        )
+        st.stop()
+        return False
+
+    client_id = os.getenv("AZURE_AD_CLIENT_ID", "")
+    client_secret = os.getenv("AZURE_AD_CLIENT_SECRET", "")
+    tenant_id = os.getenv("AZURE_AD_TENANT_ID", "common")
+    redirect_uri = os.getenv("AZURE_AD_REDIRECT_URI", "http://localhost:8501")
+    authority = f"https://login.microsoftonline.com/{tenant_id}"
+    scopes = ["User.Read"]
+
+    if not client_id or not client_secret:
+        st.error(
+            "AUTH_ENABLED=true but AZURE_AD_CLIENT_ID / AZURE_AD_CLIENT_SECRET are not set. "
+            "Please configure Azure AD credentials via environment variables or Key Vault CSI."
+        )
+        st.stop()
+        return False
+
+    app = msal.ConfidentialClientApplication(
+        client_id,
+        authority=authority,
+        client_credential=client_secret,
+    )
+
+    # Check for auth code in query params (redirect callback)
+    query_params = st.query_params
+    auth_code = query_params.get("code")
+
+    if auth_code:
+        # Exchange authorization code for tokens
+        result = app.acquire_token_by_authorization_code(
+            auth_code,
+            scopes=scopes,
+            redirect_uri=redirect_uri,
+        )
+        if "access_token" in result:
+            st.session_state["authenticated"] = True
+            st.session_state["user_name"] = result.get("id_token_claims", {}).get("name", "User")
+            st.session_state["user_email"] = result.get("id_token_claims", {}).get("preferred_username", "")
+            # Clear the code from URL
+            st.query_params.clear()
+            st.rerun()
+        else:
+            st.error(f"Authentication failed: {result.get('error_description', 'Unknown error')}")
+            st.stop()
+            return False
+
+    # No auth code — show login button
+    auth_url = app.get_authorization_request_url(
+        scopes,
+        redirect_uri=redirect_uri,
+    )
+
+    st.markdown("### 🔐 Azure AD Sign-In Required")
+    st.markdown(
+        "This application requires authentication via your organization's Azure Active Directory."
+    )
+    st.markdown(f'<a href="{auth_url}" target="_self">'
+                f'<button style="background-color:#0078D4; color:white; padding:12px 24px; '
+                f'border:none; border-radius:4px; font-size:16px; cursor:pointer;">'
+                f'Sign in with Microsoft</button></a>',
+                unsafe_allow_html=True)
+    st.stop()
+    return False
+
+
+# Run auth gate before rendering anything
+_check_azure_ad_auth()
 
 # --- Custom CSS for Enterprise Look ---
 st.markdown(
@@ -26,7 +141,7 @@ st.markdown(
     }
     .status-ok { background-color: #e6fced; border-color: #0b8235; color: #0b8235; }
     .status-err { background-color: #fce8e6; border-color: #d93025; color: #d93025; }
-    
+
     .agent-trace { font-size: 0.9em; font-family: monospace; background: #2c2f33; color: #00ff00; padding: 10px; border-radius: 5px; }
 </style>
 """,
@@ -74,6 +189,20 @@ with st.sidebar:
     """)
 
     st.markdown("---")
+
+    # Show authenticated user info when Azure AD is enabled
+    if AUTH_ENABLED and st.session_state.get("authenticated"):
+        user_name = st.session_state.get("user_name", "User")
+        user_email = st.session_state.get("user_email", "")
+        st.markdown(f"**👤 {user_name}**")
+        if user_email:
+            st.caption(user_email)
+        if st.button("🔓 Sign Out"):
+            for key in ["authenticated", "user_name", "user_email"]:
+                st.session_state.pop(key, None)
+            st.rerun()
+        st.markdown("---")
+
     st.caption(
         "Architecture: AKS GPU nodes + ANF Object/NFS + Milvus + NeMo Agent Toolkit."
     )
