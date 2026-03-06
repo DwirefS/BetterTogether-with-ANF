@@ -99,4 +99,4 @@ fi
 echo ""
 echo "--- Grafana Dashboard ---"
 echo "  Run: kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80"
-echo "  Login: admin / CHANGE_ME_AT_DEPLOY_TIME"
+echo "  Login: admin / <password set via GRAFANA_ADMIN_PASSWORD>"

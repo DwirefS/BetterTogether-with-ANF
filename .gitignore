@@ -42,6 +42,10 @@ seed research/
 # Lab journal / deployment notes (may contain IPs, resource names, debug output)
 LabLessons.md
 
+# Local-only files — private emails, access request docs, PII, subscription details
+# These must NEVER be committed to the public repo.
+keptLocal/
+
 # Actual .env files with real credentials (template is safe, .env is not)
 .env
 .env.local

@@ -30,7 +30,7 @@ logs: ## Tail logs from the Streamlit UI and NeMo Agent pod
 	./scripts/logs.sh
 
 monitoring: ## Port-forward Grafana dashboard to localhost:3000
-	@echo "Opening Grafana dashboard (admin / CHANGE_ME_AT_DEPLOY_TIME)..."
+	@echo "Opening Grafana dashboard (admin / <password set at deploy time>)..."
 	kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80
 
 port-forward: ## Port-forward Streamlit UI to localhost:8501 (alternative to LoadBalancer)
